@@ -129,7 +129,7 @@ function messageFromBytes(bytes, owner) {
     message.takeByte = function () {
         if (message.len()<1) throw new Error("Message: Out of range");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getUint8(0);
-        skip(1)
+        message.skip(1)
         return value;
     }
 
@@ -140,7 +140,7 @@ function messageFromBytes(bytes, owner) {
     message.takeInt16 = function () {
         if (message.len()<2) throw new Error("Message: Out of range");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getInt16(0);
-        skip(2)
+        message.skip(2)
         return value;
     }
 
@@ -151,7 +151,7 @@ function messageFromBytes(bytes, owner) {
     message.takeInt32 = function () {
         if (message.len()<4) throw new Error("Message: Out of range");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getInt32(0);
-        skip(4)
+        message.skip(4)
         return value;
     }
 
@@ -162,7 +162,7 @@ function messageFromBytes(bytes, owner) {
     message.takeUint16 = function () {
         if (message.len()<2) throw new Error("Message: Out of range");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getUint16(0);
-        skip(2)
+        message.skip(2)
         return value;
     }
 
@@ -173,7 +173,7 @@ function messageFromBytes(bytes, owner) {
     message.takeUint32 = function () {
         if (message.len()<4) throw new Error("Message: Out of range");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0);
-        skip(4)
+        message.skip(4)
         return value;
     }
 
@@ -184,9 +184,19 @@ function messageFromBytes(bytes, owner) {
     message.takeMessage = function (len) {
         if (message.len()<len) throw new Error("Message: Out of range");
         var value = message.slice(0,len);
-        skip(len);
+        message.skip(len);
         return value;
     }
+
+    /**
+     * Skips n bytes
+     */
+    message.skip = function (n) {
+        if (bytes.byteLenght-n < 0) n = bytes.byteLenght;
+        bytes = bytes.subarray(n); 
+    }
+
+
 
     /**
      * Appends a message msg to this message. Does a reallocation, if
@@ -238,12 +248,6 @@ function messageFromBytes(bytes, owner) {
 
     // PRIVATE METHODS
 
-    // Skips the first n bytes of the message (modifies the object)
-    function skip(n) {
-        if (bytes.byteLenght-n < 0) n = bytes.byteLenght;
-        bytes = bytes.subarray(n); 
-    }
-
     // Reallocate the byte array to a buffer of size newBufferSize and set
     // the initial size of the array to newArraySize.
     //
@@ -270,13 +274,13 @@ function messageFromBytes(bytes, owner) {
             bytes.buffer.byteLength < bytes.byteOffset + newSize) // or if there is not enough space
         { 
             owner = true;
-            console.log(' * RE-ALLOCATING!')
+            // console.log(' * RE-ALLOCATING!')
             // new size of the buffer (twice as much as we need now)
             var newBufferSize = (message.len() + numberOfNewBytes)*2;
             reallocate(newBufferSize, newSize);
         }
         else { // no need for reallocation of the underlying buffer
-            console.log(' * just resising')
+            // console.log(' * just resising')
             // it is enought to resize the byte array:
             bytes = new Uint8Array(bytes.buffer, bytes.byteOffset, newSize);
         }
@@ -301,28 +305,35 @@ exports.emptyMessage = function () {
 }
 
 /**
- * Assumes that str is an ASCII string (does not contain code
+ * Encodes a string as a message. If encoding==='ascii',
+ * it assumes that str is an ASCII string (does not contain code
  * points bigger than 255) and returns the message encoding this
- * string one byte per character.
+ * string one byte per character. If encoding==='utf16', 
+ * it encodes each character in two bytes.
  */
-exports.messageFromASCII = function (str) {
-    var arr = new Uint8Array(str.length);
-    for (var i=0; i<str.length; ++i) {
-        arr[i] = str.charCodeAt(i);
-    }
-    return messageFromBytes(arr, true);
-}
+exports.messageFromString = function (str, encoding) {
+    switch (encoding) {
+    case 'ascii':
+    case 'ASCII':
+        var arr = new Uint8Array(str.length);
+        for (var i=0; i<str.length; ++i) {
+            arr[i] = str.charCodeAt(i);
+        }
+        return messageFromBytes(arr, true);
 
-/**
- * Returns a message created from an UTF-16 string (two bytes per
- * character).
- */
-exports.messageFromUTF16 = function(str) {
-    var arr = new Uint16Array(str.length);
-    for (var i=0; i<str.length; ++i) {
-        arr[i] = str.charCodeAt(i);
+    case 'utf16':
+    case 'utf-16':
+    case 'UTF16':
+    case 'UTF-16':
+        var arr = new Uint16Array(str.length);
+        for (var i=0; i<str.length; ++i) {
+            arr[i] = str.charCodeAt(i);
+        }
+        return messageFromBytes(new Uint8Array(arr.buffer), true);
+    default:
+        throw new Error('messageFromString: unknown encoding');
     }
-    return messageFromBytes(new Uint8Array(arr.buffer), true);
+
 }
 
 /**
