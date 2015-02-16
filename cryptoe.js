@@ -287,15 +287,10 @@ function messageFromBytes(bytes, owner) {
 }
 // END OF MESSAGE
 
-
-function messageFromArrayBuffer(buf, owner) {
-    return messageFromBytes(new Uint8Array(buf), owner);
-}
-
 /**
  * Creates a new emtpy message.
  */
-function emptyMessage() {
+exports.emptyMessage = function () {
     // We assume that an empty message is created in order to
     // append some data to it. So we set the initial capacity to
     // some non-zero value
@@ -307,10 +302,10 @@ function emptyMessage() {
 
 /**
  * Assumes that str is an ASCII string (does not contain code
- * points bigger than 255) and returns the message creates out of
- * it.
+ * points bigger than 255) and returns the message encoding this
+ * string one byte per character.
  */
-function messageFromASCII(str) {
+exports.messageFromASCII = function (str) {
     var arr = new Uint8Array(str.length);
     for (var i=0; i<str.length; ++i) {
         arr[i] = str.charCodeAt(i);
@@ -318,22 +313,22 @@ function messageFromASCII(str) {
     return messageFromBytes(arr, true);
 }
 
-
 /**
- * Returns a message create from an UTF-16 string.
+ * Returns a message created from an UTF-16 string (two bytes per
+ * character).
  */
-function messageFromUTF16(str) {
+exports.messageFromUTF16 = function(str) {
     var arr = new Uint16Array(str.length);
     for (var i=0; i<str.length; ++i) {
         arr[i] = str.charCodeAt(i);
     }
-    return messageFromArrayBuffer(arr.buffer, true);
+    return messageFromBytes(new Uint8Array(arr.buffer), true);
 }
 
 /**
  * Returns a message created out of an hex-encoded string.
  */
-function messageFromHexString(str) {
+exports.messageFromHexString = function(str) {
     var len = str.length/2;
     if (Math.floor(len)!==len) throw new Error("Message: wrong length of the input string");
     var arr = new Uint8Array(len);
@@ -342,18 +337,4 @@ function messageFromHexString(str) {
     }
     return messageFromBytes(arr, true);
 }
-
-
-//////////////////////////////////////////////////////////////////////
-
-var a = messageFromHexString('abcdef');
-
-var m = emptyMessage();
-var m = m.slice(0);
-m.stat();
-
-m.appendInt32(-1);
-m.appendInt32(-2);
-m.appendInt32(-2);
-m.stat();
 
