@@ -53,8 +53,6 @@ function messageFromBytes(bytes, owner) {
      * message.length() is takes as its default value. The argument end
      * can also have negative values, in which case it is relative to the
      * end of the underlying buffer.
-     *
-     * This operation does not involve copying any data.
      */
     message.slice = function(begin, end) {
         if (end===undefined) { end = message.len(); }
@@ -128,9 +126,9 @@ function messageFromBytes(bytes, owner) {
      * Takes a 1-byte signed integer from the beginning of the message,
      * and moves the beginning of the message 1 byte forward.
      */
-    message.getInt8 = function () {
+    message.takeByte = function () {
         if (message.len()<1) throw new Error("Message: Out of range");
-        var value = new DataView(bytes.buffer, bytes.byteOffset).getInt8(0);
+        var value = new DataView(bytes.buffer, bytes.byteOffset).getUint8(0);
         skip(1)
         return value;
     }
@@ -139,7 +137,7 @@ function messageFromBytes(bytes, owner) {
      * Takes a 2-byte signed integer from the beginning of the message,
      * and moves the beginning of the message 2 byte forward.
      */
-    message.getInt16 = function () {
+    message.takeInt16 = function () {
         if (message.len()<2) throw new Error("Message: Out of range");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getInt16(0);
         skip(2)
@@ -150,7 +148,7 @@ function messageFromBytes(bytes, owner) {
      * Takes a 4-byte signed integer from the beginning of the message,
      * and moves the beginning of the message 4 byte forward.
      */
-    message.getInt32 = function () {
+    message.takeInt32 = function () {
         if (message.len()<4) throw new Error("Message: Out of range");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getInt32(0);
         skip(4)
@@ -158,21 +156,10 @@ function messageFromBytes(bytes, owner) {
     }
 
     /**
-     * Takes a 1-byte unsigned integer from the beginning of the message,
-     * and moves the beginning of the message 1 byte forward.
-     */
-    message.getUint8 = function () {
-        if (message.len()<1) throw new Error("Message: Out of range");
-        var value = new DataView(bytes.buffer, bytes.byteOffset).getUint8(0);
-        skip(1)
-        return value;
-    }
-
-    /**
      * Takes a 2-byte unsigned integer from the beginning of the message,
      * and moves the beginning of the message 2 byte forward.
      */
-    message.getUint16 = function () {
+    message.takeUint16 = function () {
         if (message.len()<2) throw new Error("Message: Out of range");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getUint16(0);
         skip(2)
@@ -183,7 +170,7 @@ function messageFromBytes(bytes, owner) {
      * Takes a 4-byte unsigned integer from the beginning of the message,
      * and moves the beginning of the message 4 byte forward.
      */
-    message.getUint32 = function () {
+    message.takeUint32 = function () {
         if (message.len()<4) throw new Error("Message: Out of range");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0);
         skip(4)
@@ -194,7 +181,7 @@ function messageFromBytes(bytes, owner) {
      * Takes len bytes from the beginning of the messages and returns is
      * as a new message.
      */
-    message.getMessage = function (len) {
+    message.takeMessage = function (len) {
         if (message.len()<len) throw new Error("Message: Out of range");
         var value = message.slice(0,len);
         skip(len);
@@ -205,7 +192,7 @@ function messageFromBytes(bytes, owner) {
      * Appends a message msg to this message. Does a reallocation, if
      * necessary.
      */
-    message.append = function( msg ) {
+    message.appendMessage = function( msg ) {
         var l = msg.len();
         var end = message.len();
         ensureSpace(l); 
@@ -214,8 +201,39 @@ function messageFromBytes(bytes, owner) {
         }
     }
 
+    /**
+     * Appends a byte (unsigned 8-bit integer).
+     */
+    message.appendByte = function(b) {
+        var end = message.len();
+        ensureSpace(1); 
+        bytes[end] = b;
+    }
+
+    /**
+     * Appends a signed 16-bit integer.
+     */
+    message.appendInt16 = function(value) {
+        var end = message.len();
+        ensureSpace(2); 
+        new DataView(bytes.buffer, bytes.byteOffset).setInt16(end, value);
+    }
+
+    message.appendUint16 = message.appendInt16;
+
+    /**
+     * Appends a signed 16-bit integer.
+     */
+    message.appendInt32 = function(value) {
+        var end = message.len();
+        ensureSpace(4); 
+        new DataView(bytes.buffer, bytes.byteOffset).setInt32(end, value)
+    }
+
+    message.appendUint32 = message.appendInt32;
+
     message.stat = function() {
-        console.log(' Status (offset/len/buffer-len):', bytes.byteOffset, bytes.length, bytes.buffer.byteLength);
+        console.log('  Status (value/owner/offset/len/buffer-len):', message.toHexString(), owner, bytes.byteOffset, bytes.length, bytes.buffer.byteLength);
     }
 
     // PRIVATE METHODS
@@ -251,6 +269,7 @@ function messageFromBytes(bytes, owner) {
         if (!owner ||  // always reallocate if this object does not own the byte array
             bytes.buffer.byteLength < bytes.byteOffset + newSize) // or if there is not enough space
         { 
+            owner = true;
             console.log(' * RE-ALLOCATING!')
             // new size of the buffer (twice as much as we need now)
             var newBufferSize = (message.len() + numberOfNewBytes)*2;
@@ -273,8 +292,24 @@ function messageFromArrayBuffer(buf, owner) {
     return messageFromBytes(new Uint8Array(buf), owner);
 }
 
-// Assumes that str is an ASCII string and returns the message
-// creates out of it
+/**
+ * Creates a new emtpy message.
+ */
+function emptyMessage() {
+    // We assume that an empty message is created in order to
+    // append some data to it. So we set the initial capacity to
+    // some non-zero value
+    var initialCapacity = 256;
+    var buf = new ArrayBuffer(256);
+    var bytes = new Uint8Array(buf, 0, 0);
+    return messageFromBytes(bytes, true);
+}
+
+/**
+ * Assumes that str is an ASCII string (does not contain code
+ * points bigger than 255) and returns the message creates out of
+ * it.
+ */
 function messageFromASCII(str) {
     var arr = new Uint8Array(str.length);
     for (var i=0; i<str.length; ++i) {
@@ -284,7 +319,9 @@ function messageFromASCII(str) {
 }
 
 
-// Returns a message create from an UTF-16 string
+/**
+ * Returns a message create from an UTF-16 string.
+ */
 function messageFromUTF16(str) {
     var arr = new Uint16Array(str.length);
     for (var i=0; i<str.length; ++i) {
@@ -293,6 +330,9 @@ function messageFromUTF16(str) {
     return messageFromArrayBuffer(arr.buffer, true);
 }
 
+/**
+ * Returns a message created out of an hex-encoded string.
+ */
 function messageFromHexString(str) {
     var len = str.length/2;
     if (Math.floor(len)!==len) throw new Error("Message: wrong length of the input string");
@@ -306,30 +346,14 @@ function messageFromHexString(str) {
 
 //////////////////////////////////////////////////////////////////////
 
+var a = messageFromHexString('abcdef');
 
-var b = messageFromHexString("ffee");
-
-var m = messageFromHexString("112233");
-console.log(m.toHexString());
+var m = emptyMessage();
+var m = m.slice(0);
 m.stat();
 
-m.append(b);
-console.log(m.toHexString());
-m.stat();
-
-m.getInt16();
-console.log(m.toHexString());
-m.stat();
-
-m.append(b);
-console.log(m.toHexString());
-m.stat();
-
-m.append(b);
-console.log(m.toHexString());
-m.stat();
-
-m.append(b);
-console.log(m.toHexString());
+m.appendInt32(-1);
+m.appendInt32(-2);
+m.appendInt32(-2);
 m.stat();
 
