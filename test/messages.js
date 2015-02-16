@@ -62,6 +62,20 @@ describe('Message', function(){
         m.appendUint32(246787634);
         assert.equal( m.takeInt32(), -246787634);
         assert.equal( m.takeUint32(), 246787634);
+
+        m.appendInt16(-1);
+        assert.equal( m.takeInt16(), -1);
+        m.appendInt16(0xffff);
+        assert.equal( m.takeInt16(), -1);
+        m.appendUint16(0xffff);
+        assert.equal( m.takeUint16(), 0xffff);
+
+        m.appendInt32(-1);
+        assert.equal( m.takeInt32(), -1);
+        m.appendInt32(0xffffffff);
+        assert.equal( m.takeInt32(), -1);
+        m.appendUint32(0xffffffff);
+        assert.equal( m.takeUint32(), 0xffffffff);
     });   
   });
 
@@ -86,7 +100,7 @@ describe('Message', function(){
     it('should not interfere', function() {
         var m0 = ct.emptyMessage();
         m.appendInt32(12345);
-        var m1 = m0.slice(0);
+        var m1 = m0.slice(0); // m1 is a clone of m0
         m0.appendInt32(324);
         var s0 = m0.toHexString();
         m1.appendInt32(898789); // this should not change the value of m0
