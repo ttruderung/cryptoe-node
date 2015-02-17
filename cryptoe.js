@@ -3,16 +3,22 @@
  * providing easy interoperability between client- and server-side
  * environments.
  *
+ * This is the version of cryptoe for node.js
+ *
  * @author Tomasz Truderung
  *
  * Copyright (c) 2015 Tomasz Truderung
  */
 
+cryptoe = exports;
+
 //////////////////////////////////////////////////////////////////////
+// MESSAGE
+
 
 /**
- * Private constructor of messages. It creates a messaage by encapsulating
- * by encapsulating an array of bytes (of type Uint8Array). 
+ * Private constructor of messages. It creates a messaage  by
+ * encapsulating an array of bytes (of type Uint8Array). 
  *
  * @param bytes: (Uint8Array) array of bytes 
  *
@@ -24,16 +30,16 @@
  * @return a new message object encapsulating 'bytes'
  */
 function messageFromBytes(bytes, owner) {
-    // Variable 'bytes' (Uint8Array) and 'owner' (boolean) represent the
-    // internal state of the created message.  
-    // Relevant fields of 'bytes': 
-    //   data.byteOffset
-    //   data.byteLength === data.length
+    // Variables bytes (Uint8Array) and owner (boolean) represent the
+    // internal state of the created message. 
+
 
     // The message object to be returned. All the public methods are
     // added to this object
     var message = {};
 
+    message.reallocationCounter = 0; // for testing 
+    
     // PUBLIC METHODS OF THE MESSAGE OBJECT
 
     /**
@@ -53,11 +59,22 @@ function messageFromBytes(bytes, owner) {
      * message.length() is takes as its default value. The argument end
      * can also have negative values, in which case it is relative to the
      * end of the underlying buffer.
+     *
+     * Slicing is a light-weight operation and does not involve data
+     * copying (the underlying data will be, however, copied once one of
+     * the append method is called for the returned message).
      */
     message.slice = function(begin, end) {
         if (end===undefined) { end = message.len(); }
         if (end<0) { end = message.len() + end; }
         return messageFromBytes(bytes.subarray(begin, end), false);
+    }
+
+    /**
+     * Clones the message. It is a shortcut for slice(0).
+     */
+    message.clone = function() {
+        return message.slice(0);
     }
 
     /**
@@ -85,6 +102,9 @@ function messageFromBytes(bytes, owner) {
     }
 
     /** 
+     * TODO: we want to have only one encoding of a string as a message
+     * utf8. 
+     *
      * Assumes that the message encodes a string and converts it back to a
      * string. 
      *
@@ -119,6 +139,7 @@ function messageFromBytes(bytes, owner) {
         return str;
     }
 
+
     // The following methods read some data from the beginning of
     // the message and move the message forward
 
@@ -127,9 +148,9 @@ function messageFromBytes(bytes, owner) {
      * and moves the beginning of the message 1 byte forward.
      */
     message.takeByte = function () {
-        if (message.len()<1) throw new Error("Message: Out of range");
-        var value = new DataView(bytes.buffer, bytes.byteOffset).getUint8(0);
-        message.skip(1)
+        if (message.len()<1) throw new Error("Message.takeByte: not enought data");
+        var value = message.byteAt(0);
+        message.skip(1);
         return value;
     }
 
@@ -138,7 +159,7 @@ function messageFromBytes(bytes, owner) {
      * and moves the beginning of the message 2 byte forward.
      */
     message.takeInt16 = function () {
-        if (message.len()<2) throw new Error("Message: Out of range");
+        if (message.len()<2) throw new Error("Message.takeInt16: not enought data");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getInt16(0);
         message.skip(2)
         return value;
@@ -149,9 +170,9 @@ function messageFromBytes(bytes, owner) {
      * and moves the beginning of the message 4 byte forward.
      */
     message.takeInt32 = function () {
-        if (message.len()<4) throw new Error("Message: Out of range");
+        if (message.len()<4) throw new Error("Message.takeInt32: not enought data");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getInt32(0);
-        message.skip(4)
+        message.skip(4);
         return value;
     }
 
@@ -160,9 +181,9 @@ function messageFromBytes(bytes, owner) {
      * and moves the beginning of the message 2 byte forward.
      */
     message.takeUint16 = function () {
-        if (message.len()<2) throw new Error("Message: Out of range");
+        if (message.len()<2) throw new Error("Message.takeUInt16: not enought data");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getUint16(0);
-        message.skip(2)
+        message.skip(2);
         return value;
     }
 
@@ -171,9 +192,9 @@ function messageFromBytes(bytes, owner) {
      * and moves the beginning of the message 4 byte forward.
      */
     message.takeUint32 = function () {
-        if (message.len()<4) throw new Error("Message: Out of range");
+        if (message.len()<4) throw new Error("Message.takeUint32: not enought data");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0);
-        message.skip(4)
+        message.skip(4);
         return value;
     }
 
@@ -182,14 +203,14 @@ function messageFromBytes(bytes, owner) {
      * as a new message.
      */
     message.takeMessage = function (len) {
-        if (message.len()<len) throw new Error("Message: Out of range");
+        if (message.len()<len) throw new Error("Message.takeMessage: not enought data");
         var value = message.slice(0,len);
         message.skip(len);
         return value;
     }
 
     /**
-     * Skips n bytes
+     * Skips n bytes (moves the beginning of the messages n bytes forward).
      */
     message.skip = function (n) {
         if (bytes.byteLenght-n < 0) n = bytes.byteLenght;
@@ -197,15 +218,14 @@ function messageFromBytes(bytes, owner) {
     }
 
 
-
     /**
-     * Appends a message msg to this message. Does a reallocation, if
-     * necessary.
+     * Appends a message msg to this message (does a reallocation, if
+     * necessary).
      */
     message.appendMessage = function( msg ) {
+        var end = message.len(); // keep the end, the next line will change it
         var l = msg.len();
-        var end = message.len();
-        ensureSpace(l); 
+        enlargeBy(l); 
         for (var i=0; i<l; ++i) {
             bytes[end++] = msg.byteAt(i);
         }
@@ -216,7 +236,7 @@ function messageFromBytes(bytes, owner) {
      */
     message.appendByte = function(b) {
         var end = message.len();
-        ensureSpace(1); 
+        enlargeBy(1); 
         bytes[end] = b;
     }
 
@@ -225,7 +245,7 @@ function messageFromBytes(bytes, owner) {
      */
     message.appendInt16 = function(value) {
         var end = message.len();
-        ensureSpace(2); 
+        enlargeBy(2); 
         new DataView(bytes.buffer, bytes.byteOffset).setInt16(end, value);
     }
 
@@ -236,20 +256,18 @@ function messageFromBytes(bytes, owner) {
      */
     message.appendInt32 = function(value) {
         var end = message.len();
-        ensureSpace(4); 
+        enlargeBy(4); 
         new DataView(bytes.buffer, bytes.byteOffset).setInt32(end, value)
     }
 
     message.appendUint32 = message.appendInt32;
 
-    message.stat = function() {
-        console.log('  Status (value/owner/offset/len/buffer-len):', message.toHexString(), owner, bytes.byteOffset, bytes.length, bytes.buffer.byteLength);
-    }
 
     // PRIVATE METHODS
 
     // Reallocate the byte array to a buffer of size newBufferSize and set
-    // the initial size of the array to newArraySize.
+    // the initial size of the array to newArraySize (the array uses
+    // part of the buffer; the buffer provides the underlying data).
     //
     function reallocate(newBufferSize, newArraySize) {
         if (newArraySize < message.len() || newBufferSize < newArraySize ) {
@@ -261,40 +279,43 @@ function messageFromBytes(bytes, owner) {
         // Create the new array of bytes using elements of buffer from 0 to newArraySize
         var newBytes = new Uint8Array(newBuffer, 0, newArraySize); 
         // Copy existing data from the old array (bytes) to new array (newBytes):
-        newBytes.set(bytes);
-        // Substitute the new array by the new one:
+        newBytes.set(bytes); // message.len() bytes is copied
+        // Substitute the old array by the new one:
         bytes = newBytes;
+
+        owner = true; // now we own the data
+        message.reallocationCounter++;
     }
 
-    // Ensures enough space for additional numberOfNewBytes bytes.
+    // Enlarges the byte array 'bytes' by numberOfNewBytes bytes.
     // If necessary, reallocates the data. Always resizes the byte array 'bytes'.
-    function ensureSpace(numberOfNewBytes) {
+    //
+    function enlargeBy(numberOfNewBytes) {
         var newSize = message.len() + numberOfNewBytes;  // new requested size
         if (!owner ||  // always reallocate if this object does not own the byte array
             bytes.buffer.byteLength < bytes.byteOffset + newSize) // or if there is not enough space
         { 
-            owner = true;
-            // console.log(' * RE-ALLOCATING!')
-            // new size of the buffer (twice as much as we need now)
-            var newBufferSize = (message.len() + numberOfNewBytes)*2;
+            // Reallocate:
+            var newBufferSize = (message.len() + numberOfNewBytes)*2; // twice as much as we need right now
             reallocate(newBufferSize, newSize);
         }
-        else { // no need for reallocation of the underlying buffer
-            // console.log(' * just resising')
-            // it is enought to resize the byte array:
+        else { 
+            // Resize the array only:
             bytes = new Uint8Array(bytes.buffer, bytes.byteOffset, newSize);
         }
     }
+
 
     // Return the message object
     return message;
 }
 // END OF MESSAGE
 
+
 /**
  * Creates a new emtpy message.
  */
-exports.emptyMessage = function () {
+cryptoe.emptyMessage = function () {
     // We assume that an empty message is created in order to
     // append some data to it. So we set the initial capacity to
     // some non-zero value
@@ -304,14 +325,17 @@ exports.emptyMessage = function () {
     return messageFromBytes(bytes, true);
 }
 
+
 /**
+ * TODO: we want to have only utf8
+ *
  * Encodes a string as a message. If encoding==='ascii',
  * it assumes that str is an ASCII string (does not contain code
  * points bigger than 255) and returns the message encoding this
  * string one byte per character. If encoding==='utf16', 
  * it encodes each character in two bytes.
  */
-exports.messageFromString = function (str, encoding) {
+cryptoe.messageFromString = function (str, encoding) {
     switch (encoding) {
     case 'ascii':
     case 'ASCII':
@@ -337,9 +361,9 @@ exports.messageFromString = function (str, encoding) {
 }
 
 /**
- * Returns a message created out of an hex-encoded string.
+ * Returns a message created from a hex-encoded string.
  */
-exports.messageFromHexString = function(str) {
+cryptoe.messageFromHexString = function(str) {
     var len = str.length/2;
     if (Math.floor(len)!==len) throw new Error("Message: wrong length of the input string");
     var arr = new Uint8Array(len);
