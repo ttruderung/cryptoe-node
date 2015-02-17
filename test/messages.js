@@ -11,23 +11,24 @@ describe('Message', function(){
     })
   });
 
-  describe('messageFromASCII', function(){
-    it('should encode one byte per character and decode to the same string', function(){
-        var m = cryptoe.messageFromString('abc', 'ascii');
+  describe('messageFromString', function(){
+    it('should encode one byte per one ASCII character and decode to the same string', function(){
+        var m = cryptoe.messageFromString('abc');
         assert( m.len() === 3  );
-        var s = m.toString('ascii');
+        var s = m.toString();
         assert( 'abc' === s );
     });
+
+    it('should handle non-ascii characters', function(){
+        var m = cryptoe.messageFromString('łąka!');
+        assert.equal(m.toHexString(), 'c582c4856b6121');
+        assert.equal(m.toString(), 'łąka!');
+        m = cryptoe.messageFromString('わかよたれそつねならむ');
+        assert.equal(m.toString(), 'わかよたれそつねならむ');
+    });
+
   });
 
-  describe('messageFromUTF16', function(){
-    it('should encode two byte per character and decode to the same string', function(){
-        var m = cryptoe.messageFromString('abć', 'utf16');
-        assert.equal(6, m.len());
-        var s = m.toString('utf16');
-        assert.equal('abć', s);
-    });
-  });
 
   describe('messageFromHexString', function(){
     it('should produce a message of the appropriate length and decode to the same string', function(){

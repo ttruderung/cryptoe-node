@@ -12,6 +12,8 @@
 
 cryptoe = exports;
 
+"use strict"
+
 //////////////////////////////////////////////////////////////////////
 // MESSAGE
 
@@ -102,41 +104,13 @@ function messageFromBytes(bytes, owner) {
     }
 
     /** 
-     * TODO: we want to have only one encoding of a string as a message
-     * utf8. 
-     *
-     * Assumes that the message encodes a string and converts it back to a
-     * string. 
-     *
-     * @parameter encoding: (string) can be "ascii" of "utf16". Depending
-     * on the value of this parameter, the message is assumed to contain
-     * ascii (one byte per character) or utf16 (two bytes per character)
-     * encoded string. 
+     * Assumes that the message encodes a utf-8 encoded string and
+     * converts it back to a (native javascript) string. 
      */
-    message.toString = function(encoding) {
-        var str = "";       
-        var arr;
-
-        switch (encoding) {
-        case 'ascii':
-        case 'ASCII':
-            for (var b of bytes) {
-                str += String.fromCharCode(b);
-            }
-            break;
-        case 'utf16':
-        case 'utf-16':
-        case 'UTF16':
-        case 'UTF-16':
-            arr = new Uint16Array(bytes.buffer, bytes.byteOffset, bytes.byteLenght);
-            for (var c of arr) {
-                str += String.fromCharCode(c);
-            }
-            break;
-        default:
-            throw new Error('Message.toString: unknown encoding');
-        }
-        return str;
+    message.toString = function() {
+        // Obtain a string, where every character represents one byte.
+        var utf8str = String.fromCharCode.apply(null, bytes);
+        return decodeURIComponent(escape(utf8str));
     }
 
 
@@ -327,37 +301,20 @@ cryptoe.emptyMessage = function () {
 
 
 /**
- * TODO: we want to have only utf8
- *
- * Encodes a string as a message. If encoding==='ascii',
- * it assumes that str is an ASCII string (does not contain code
- * points bigger than 255) and returns the message encoding this
- * string one byte per character. If encoding==='utf16', 
- * it encodes each character in two bytes.
+ * Creates a message from a string (in the native javascript encoding). 
+ * The returned message is utf-8 encoded.
  */
-cryptoe.messageFromString = function (str, encoding) {
-    switch (encoding) {
-    case 'ascii':
-    case 'ASCII':
-        var arr = new Uint8Array(str.length);
-        for (var i=0; i<str.length; ++i) {
-            arr[i] = str.charCodeAt(i);
-        }
-        return messageFromBytes(arr, true);
-
-    case 'utf16':
-    case 'utf-16':
-    case 'UTF16':
-    case 'UTF-16':
-        var arr = new Uint16Array(str.length);
-        for (var i=0; i<str.length; ++i) {
-            arr[i] = str.charCodeAt(i);
-        }
-        return messageFromBytes(new Uint8Array(arr.buffer), true);
-    default:
-        throw new Error('messageFromString: unknown encoding');
+cryptoe.messageFromString = function (str) {
+    // Obtain a string, where every character represents one byte of the
+    // utf-8 representation of str:
+    var utf8str = unescape(encodeURIComponent(str));
+    // Create a byte array and write into it the bytes from utf8str:
+    var len = utf8str.length;
+    var arr = new Uint8Array(len);
+    for (var i=0; i<len; ++i) {
+        arr[i] = utf8str.charCodeAt(i);
     }
-
+    return messageFromBytes(arr, true);
 }
 
 /**
