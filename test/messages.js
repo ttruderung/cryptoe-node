@@ -5,21 +5,41 @@ var m = cryptoe.emptyMessage();
 
 describe('Message', function(){
   describe('empty', function(){
-    it('should return an empty message ', function(){
+    it('returns an empty message ', function(){
         var m = cryptoe.emptyMessage();
         assert.equal( m.len(), 0 );
     })
   });
 
+
+  describe('messageFromBytes', function(){
+    it('works as expected', function(){
+        var m = cryptoe.messageFromBytes([10,11,12]);
+        assert( m.len() === 3 );
+        assert( m.byteAt(0) === 10 );
+        assert( m.byteAt(1) === 11 );
+        assert( m.byteAt(2) === 12 );
+
+        var arr = new Uint8Array(100);
+        for (var i=0; i<arr.length; ++i ) { arr[i] = 71*i+5; }
+        var m = cryptoe.messageFromBytes(arr);
+        var b = m.toBytes();
+        assert.equal(b.lenght, arr.lenght);
+        for (i=0; i<arr.length; ++i ) { 
+            assert.equal(b[i], arr[i]);
+        }
+    });
+  });
+
   describe('messageFromString', function(){
-    it('should encode one byte per one ASCII character and decode to the same string', function(){
+    it('encodes one byte per one ASCII character and decodes to the same string', function(){
         var m = cryptoe.messageFromString('abc');
         assert( m.len() === 3  );
         var s = m.toString();
-        assert( 'abc' === s );
+        assert.equal('abc', s);
     });
 
-    it('should handle non-ascii characters', function(){
+    it('handles non-ascii characters', function(){
         var m = cryptoe.messageFromString('łąka!');
         assert.equal(m.toHexString(), 'c582c4856b6121');
         assert.equal(m.toString(), 'łąka!');
@@ -29,9 +49,26 @@ describe('Message', function(){
 
   });
 
+  describe('messageFromBase64 and toBase64', function(){
+    it('works as expected', function(){
+        var a,b;
+        a = cryptoe.emptyMessage();
+        b = cryptoe.messageFromBase64(a.toBase64());
+        assert.equal(a.toHexString(), b.toHexString());
+
+        a = cryptoe.messageFromBytes([12]);
+        b = cryptoe.messageFromBase64(a.toBase64());
+        assert.equal(a.toHexString(), b.toHexString());
+
+        a = cryptoe.messageFromBytes([12,34,89,23,22,254]);
+        b = cryptoe.messageFromBase64(a.toBase64());
+        assert.equal(a.toHexString(), b.toHexString());
+    });
+  });
+
 
   describe('messageFromHexString', function(){
-    it('should produce a message of the appropriate length and decode to the same string', function(){
+    it('produces a message of the appropriate length and decodes to the same string', function(){
         var s0 = '10afbcfa89';
         var m = cryptoe.messageFromHexString(s0);
         assert.equal(5, m.len());
@@ -46,7 +83,7 @@ describe('Message', function(){
   });
 
   describe('append and take', function(){
-    it('should be complementary', function(){
+    it('are complementary', function(){
         var m = cryptoe.messageFromHexString('ffee0011');
         var a = cryptoe.messageFromHexString('1278fa');
         
@@ -65,7 +102,7 @@ describe('Message', function(){
         assert.equal( m.takeUint32(), 246787634);
     });   
 
-    it('should work for long time', function(){
+    it('work for long time', function(){
         var m = cryptoe.emptyMessage();
         var i;
         var a;
@@ -89,7 +126,7 @@ describe('Message', function(){
   });
 
   describe('appendInt and takeInt', function(){
-    it('should encode/decode using big endian', function(){
+    it('encode/decode using big endian', function(){
         var m = cryptoe.emptyMessage();
         m.appendByte(0x5f);
         m.appendByte(0x7a);
@@ -122,7 +159,7 @@ describe('Message', function(){
   });
 
   describe('take', function(){
-    it('should sometimes throw an exception', function(){
+    it('sometimes throws an exception', function(){
         assert.throws(function(){
             cryptoe.emptyMessage.takeByte();
         });

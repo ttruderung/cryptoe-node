@@ -12,7 +12,6 @@
 
 cryptoe = exports;
 
-"use strict"
 
 //////////////////////////////////////////////////////////////////////
 // MESSAGE
@@ -31,7 +30,7 @@ cryptoe = exports;
  *
  * @return a new message object encapsulating 'bytes'
  */
-function messageFromBytes(bytes, owner) {
+function newMessage(bytes, owner) {
     // Variables bytes (Uint8Array) and owner (boolean) represent the
     // internal state of the created message. 
 
@@ -69,7 +68,7 @@ function messageFromBytes(bytes, owner) {
     message.slice = function(begin, end) {
         if (end===undefined) { end = message.len(); }
         if (end<0) { end = message.len() + end; }
-        return messageFromBytes(bytes.subarray(begin, end), false);
+        return newMessage(bytes.subarray(begin, end), false);
     }
 
     /**
@@ -80,9 +79,8 @@ function messageFromBytes(bytes, owner) {
     }
 
     /**
-     *  Returns the content of the message as an array of bytes
-     *  (Uint8Array). The returned array is a copy of the message
-     *  representation.
+     *  Returns the message as an array of bytes (Uint8Array). The
+     *  returned array is a copy of the message representation.
      */
     message.toBytes = function() {
         var array = new Uint8Array(message.len()); // create a new array
@@ -103,8 +101,18 @@ function messageFromBytes(bytes, owner) {
         return hex;
     }
 
+    /**
+     * Returns the base64 representation of the message.
+     */
+    message.toBase64 = function() {
+        // Obtain a string, where every character represents one byte.
+        var binstr = String.fromCharCode.apply(null, bytes);
+        // Convert it to base54:
+        return btoa(binstr);
+    }
+
     /** 
-     * Assumes that the message encodes a utf-8 encoded string and
+     * Assumes that the message contains a utf-8 encoded string and
      * converts it back to a (native javascript) string. 
      */
     message.toString = function() {
@@ -121,7 +129,7 @@ function messageFromBytes(bytes, owner) {
      * Takes a 1-byte signed integer from the beginning of the message,
      * and moves the beginning of the message 1 byte forward.
      */
-    message.takeByte = function () {
+    message.takeByte = function() {
         if (message.len()<1) throw new Error("Message.takeByte: not enought data");
         var value = message.byteAt(0);
         message.skip(1);
@@ -132,7 +140,7 @@ function messageFromBytes(bytes, owner) {
      * Takes a 2-byte signed integer from the beginning of the message,
      * and moves the beginning of the message 2 byte forward.
      */
-    message.takeInt16 = function () {
+    message.takeInt16 = function() {
         if (message.len()<2) throw new Error("Message.takeInt16: not enought data");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getInt16(0);
         message.skip(2)
@@ -143,7 +151,7 @@ function messageFromBytes(bytes, owner) {
      * Takes a 4-byte signed integer from the beginning of the message,
      * and moves the beginning of the message 4 byte forward.
      */
-    message.takeInt32 = function () {
+    message.takeInt32 = function() {
         if (message.len()<4) throw new Error("Message.takeInt32: not enought data");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getInt32(0);
         message.skip(4);
@@ -154,7 +162,7 @@ function messageFromBytes(bytes, owner) {
      * Takes a 2-byte unsigned integer from the beginning of the message,
      * and moves the beginning of the message 2 byte forward.
      */
-    message.takeUint16 = function () {
+    message.takeUint16 = function() {
         if (message.len()<2) throw new Error("Message.takeUInt16: not enought data");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getUint16(0);
         message.skip(2);
@@ -165,7 +173,7 @@ function messageFromBytes(bytes, owner) {
      * Takes a 4-byte unsigned integer from the beginning of the message,
      * and moves the beginning of the message 4 byte forward.
      */
-    message.takeUint32 = function () {
+    message.takeUint32 = function() {
         if (message.len()<4) throw new Error("Message.takeUint32: not enought data");
         var value = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0);
         message.skip(4);
@@ -176,7 +184,7 @@ function messageFromBytes(bytes, owner) {
      * Takes len bytes from the beginning of the messages and returns is
      * as a new message.
      */
-    message.takeMessage = function (len) {
+    message.takeMessage = function(len) {
         if (message.len()<len) throw new Error("Message.takeMessage: not enought data");
         var value = message.slice(0,len);
         message.skip(len);
@@ -186,7 +194,7 @@ function messageFromBytes(bytes, owner) {
     /**
      * Skips n bytes (moves the beginning of the messages n bytes forward).
      */
-    message.skip = function (n) {
+    message.skip = function(n) {
         if (bytes.byteLenght-n < 0) n = bytes.byteLenght;
         bytes = bytes.subarray(n); 
     }
@@ -196,7 +204,7 @@ function messageFromBytes(bytes, owner) {
      * Appends a message msg to this message (does a reallocation, if
      * necessary).
      */
-    message.appendMessage = function( msg ) {
+    message.appendMessage = function(msg) {
         var end = message.len(); // keep the end, the next line will change it
         var l = msg.len();
         enlargeBy(l); 
@@ -296,25 +304,29 @@ cryptoe.emptyMessage = function () {
     var initialCapacity = 256;
     var buf = new ArrayBuffer(256);
     var bytes = new Uint8Array(buf, 0, 0);
-    return messageFromBytes(bytes, true);
+    return newMessage(bytes, true);
 }
 
+/**
+ * Creates a message from an array of bytes. It accepts anything that
+ * has the property bytes.length and can be indexed by bytes[i].
+ */
+cryptoe.messageFromBytes = function(bytes) {
+    var len = bytes.length;
+    var arr = new Uint8Array(len);
+    for (var i=0; i<len; ++i) {
+        arr[i] = bytes[i];
+    }
+    return newMessage(arr, true);
+}
 
 /**
  * Creates a message from a string (in the native javascript encoding). 
  * The returned message is utf-8 encoded.
  */
 cryptoe.messageFromString = function (str) {
-    // Obtain a string, where every character represents one byte of the
-    // utf-8 representation of str:
-    var utf8str = unescape(encodeURIComponent(str));
-    // Create a byte array and write into it the bytes from utf8str:
-    var len = utf8str.length;
-    var arr = new Uint8Array(len);
-    for (var i=0; i<len; ++i) {
-        arr[i] = utf8str.charCodeAt(i);
-    }
-    return messageFromBytes(arr, true);
+    var binstr = unescape(encodeURIComponent(str)); // each character of utf8str represents one byte
+    return messageFromBinString(binstr);
 }
 
 /**
@@ -327,6 +339,38 @@ cryptoe.messageFromHexString = function(str) {
     for (var i=0; i<len; ++i) {
         arr[i] = parseInt(str[2*i], 16)*16 + parseInt(str[2*i+1], 16);
     }
-    return messageFromBytes(arr, true);
+    return newMessage(arr, true);
 }
 
+/**
+ * Creates a message from a base64 representation.
+ */
+cryptoe.messageFromBase64 = function(base64str) {
+    var binstr = atob(base64str); // each character of binstr represents one byte
+    return messageFromBinString(binstr);
+}
+
+// PRIVATE FUNCTIONS
+
+function messageFromBinString(binstr) {
+    var len = binstr.length;
+    var arr = new Uint8Array(len);
+    for (var i=0; i<len; ++i) {
+        arr[i] = binstr.charCodeAt(i);
+    }
+    return newMessage(arr, true);
+}
+
+/** 
+ * Converts a binary string (one character per byte) to base64.
+ */
+function btoa(binstr) {
+    return (new Buffer(binstr, 'binary')).toString('base64');
+}
+
+/** 
+ * Converts a base64 string to a binary string (one character per byte)
+ */
+function atob(binstr) {
+    return (new Buffer(binstr, 'base64')).toString('binary');
+}
