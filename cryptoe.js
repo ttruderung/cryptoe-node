@@ -10,8 +10,9 @@
  * Copyright (c) 2015 Tomasz Truderung
  */
 
-cryptoe = exports;
+var assert = require('assert');
 
+cryptoe = exports;
 
 //////////////////////////////////////////////////////////////////////
 // MESSAGE
@@ -21,18 +22,18 @@ cryptoe = exports;
  * Private constructor of messages. It creates a messaage  by
  * encapsulating an array of bytes (of type Uint8Array). 
  *
- * @param bytes: (Uint8Array) array of bytes 
+ * @param bytes: (Buffer) array of bytes 
  *
- * @param owner: (boolean) specifies if the created message owns the 
- *               byte array given as the first parameter. If yes, the
- *               message can change the values store in bytes, otherwise
- *               it has to re-allocate before making any changes.
+ * @param end:   (int) specifies size of the buffer (the index
+ *               where new data can be written to). 
+ *               If end>bytes.length (there is space to write),
+ *               then this object owns the underlying buffer.
  *
  * @return a new message object encapsulating 'bytes'
  */
-function newMessage(bytes, owner) {
-    // Variables bytes (Uint8Array) and owner (boolean) represent the
-    // internal state of the created message. 
+function newMessage(bytes, end) {
+    // Variables bytes (Buffer) and end (int) represent the internal
+    // state of the created message. 
 
 
     // The message object to be returned. All the public methods are
@@ -46,17 +47,18 @@ function newMessage(bytes, owner) {
     /**
      * Returns the length of the message.
      */
-    message.len = function() { return bytes.length; }
+    message.len = function() { return end; }
 
     /**
      * Returns the i-th byte of the message
      */
     message.byteAt = function(n) {
+        assert(n>=0 && n<end);
         return bytes[n];
     }
 
     /**
-     * Returns a slice [begin,end) of the message. If end is unspecified,
+     * Returns a slice [a,b) of the message. If end is unspecified,
      * message.length() is takes as its default value. The argument end
      * can also have negative values, in which case it is relative to the
      * end of the underlying buffer.
@@ -65,10 +67,10 @@ function newMessage(bytes, owner) {
      * copying (the underlying data will be, however, copied once one of
      * the append method is called for the returned message).
      */
-    message.slice = function(begin, end) {
-        if (end===undefined) { end = message.len(); }
-        if (end<0) { end = message.len() + end; }
-        return newMessage(bytes.subarray(begin, end), false);
+    message.slice = function(a, b) {
+        if (b===undefined) { b = message.len(); }
+        if (b<0) { b = message.len() + b; }
+        return newMessage(bytes.slice(a, b), b);
     }
 
     /**
@@ -79,12 +81,12 @@ function newMessage(bytes, owner) {
     }
 
     /**
-     *  Returns the message as an array of bytes (Uint8Array). The
+     *  Returns the message as an array of bytes (Buffer). The
      *  returned array is a copy of the message representation.
      */
     message.toBytes = function() {
-        var array = new Uint8Array(message.len()); // create a new array
-        array.set(bytes); // and copy the content of bytes to this array
+        var array = new Buffer(message.len()); // create a new buffer
+        bytes.copy(array, 0, 0, end); // and copy the content of bytes to this array
         return array
     }
 
@@ -93,22 +95,14 @@ function newMessage(bytes, owner) {
      * message.
      */
     message.toHexString = function() {
-        var hex = "";
-        for (var b of bytes) {
-            if (b<16) hex += '0';
-            hex += b.toString(16);
-        }
-        return hex;
+        return bytes.toString('hex', 0, end);
     }
 
     /**
      * Returns the base64 representation of the message.
      */
     message.toBase64 = function() {
-        // Obtain a string, where every character represents one byte.
-        var binstr = String.fromCharCode.apply(null, bytes);
-        // Convert it to base54:
-        return btoa(binstr);
+        return bytes.toString('base64', 0, end);
     }
 
     /** 
@@ -116,9 +110,7 @@ function newMessage(bytes, owner) {
      * converts it back to a (native javascript) string. 
      */
     message.toString = function() {
-        // Obtain a string, where every character represents one byte.
-        var utf8str = String.fromCharCode.apply(null, bytes);
-        return decodeURIComponent(escape(utf8str));
+        return bytes.toString('utf8', 0, end);
     }
 
 
@@ -142,7 +134,7 @@ function newMessage(bytes, owner) {
      */
     message.takeInt16 = function() {
         if (message.len()<2) throw new Error("Message.takeInt16: not enought data");
-        var value = new DataView(bytes.buffer, bytes.byteOffset).getInt16(0);
+        var value = bytes.readInt16BE(0);
         message.skip(2)
         return value;
     }
@@ -153,7 +145,7 @@ function newMessage(bytes, owner) {
      */
     message.takeInt32 = function() {
         if (message.len()<4) throw new Error("Message.takeInt32: not enought data");
-        var value = new DataView(bytes.buffer, bytes.byteOffset).getInt32(0);
+        var value = bytes.readInt32BE(0);
         message.skip(4);
         return value;
     }
@@ -164,7 +156,7 @@ function newMessage(bytes, owner) {
      */
     message.takeUint16 = function() {
         if (message.len()<2) throw new Error("Message.takeUInt16: not enought data");
-        var value = new DataView(bytes.buffer, bytes.byteOffset).getUint16(0);
+        var value = bytes.readUInt16BE(0); 
         message.skip(2);
         return value;
     }
@@ -175,7 +167,7 @@ function newMessage(bytes, owner) {
      */
     message.takeUint32 = function() {
         if (message.len()<4) throw new Error("Message.takeUint32: not enought data");
-        var value = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0);
+        var value = bytes.readUInt32BE(0); 
         message.skip(4);
         return value;
     }
@@ -195,8 +187,10 @@ function newMessage(bytes, owner) {
      * Skips n bytes (moves the beginning of the messages n bytes forward).
      */
     message.skip = function(n) {
-        if (bytes.byteLenght-n < 0) n = bytes.byteLenght;
-        bytes = bytes.subarray(n); 
+        if (end < n) n = end;
+
+        bytes = bytes.slice(n); 
+        end -= n;
     }
 
 
@@ -205,11 +199,11 @@ function newMessage(bytes, owner) {
      * necessary).
      */
     message.appendMessage = function(msg) {
-        var end = message.len(); // keep the end, the next line will change it
+        var oldend = message.len(); // keep the end, the next line will change it
         var l = msg.len();
         enlargeBy(l); 
         for (var i=0; i<l; ++i) {
-            bytes[end++] = msg.byteAt(i);
+            bytes[oldend++] = msg.byteAt(i);
         }
     }
 
@@ -217,33 +211,46 @@ function newMessage(bytes, owner) {
      * Appends a byte (unsigned 8-bit integer).
      */
     message.appendByte = function(b) {
-        var end = message.len();
+        var oldend = message.len();
         enlargeBy(1); 
-        bytes[end] = b;
+        bytes[oldend] = b;
     }
 
     /**
      * Appends a signed 16-bit integer.
      */
     message.appendInt16 = function(value) {
-        var end = message.len();
+        var oldend = message.len();
         enlargeBy(2); 
-        new DataView(bytes.buffer, bytes.byteOffset).setInt16(end, value);
+        bytes.writeInt16BE(value, oldend);
     }
-
-    message.appendUint16 = message.appendInt16;
 
     /**
-     * Appends a signed 16-bit integer.
+     * Appends an unsigned 16-bit integer.
      */
-    message.appendInt32 = function(value) {
-        var end = message.len();
-        enlargeBy(4); 
-        new DataView(bytes.buffer, bytes.byteOffset).setInt32(end, value)
+    message.appendUint16 = function(value) {
+        var oldend = message.len();
+        enlargeBy(2); 
+        bytes.writeUInt16BE(value, oldend);
     }
 
-    message.appendUint32 = message.appendInt32;
+    /**
+     * Appends a signed 32-bit integer.
+     */
+    message.appendInt32 = function(value) {
+        var oldend = message.len();
+        enlargeBy(4); 
+        bytes.writeInt32BE(value, oldend)
+    }
 
+    /**
+     * Appends a signed 32-bit integer.
+     */
+    message.appendUint32 = function(value) {
+        var oldend = message.len();
+        enlargeBy(4); 
+        bytes.writeUInt32BE(value, oldend)
+    }
 
     // PRIVATE METHODS
 
@@ -257,15 +264,14 @@ function newMessage(bytes, owner) {
         }
 
         // Allocate a new buffer of size newBufferSize: 
-        var newBuffer = new ArrayBuffer(newBufferSize);
-        // Create the new array of bytes using elements of buffer from 0 to newArraySize
-        var newBytes = new Uint8Array(newBuffer, 0, newArraySize); 
+        var newBuffer = new Buffer(newBufferSize);
         // Copy existing data from the old array (bytes) to new array (newBytes):
-        newBytes.set(bytes); // message.len() bytes is copied
-        // Substitute the old array by the new one:
-        bytes = newBytes;
+        bytes.copy(newBuffer, 0, 0, end);
+        // Replace the old array by the new one:
+        bytes = newBuffer;
+        // Set the end 
+        end = newArraySize;
 
-        owner = true; // now we own the data
         message.reallocationCounter++;
     }
 
@@ -274,16 +280,15 @@ function newMessage(bytes, owner) {
     //
     function enlargeBy(numberOfNewBytes) {
         var newSize = message.len() + numberOfNewBytes;  // new requested size
-        if (!owner ||  // always reallocate if this object does not own the byte array
-            bytes.buffer.byteLength < bytes.byteOffset + newSize) // or if there is not enough space
+        if (bytes.length < newSize) // there is not enough space
         { 
             // Reallocate:
-            var newBufferSize = (message.len() + numberOfNewBytes)*2; // twice as much as we need right now
+            var newBufferSize = newSize*2; // twice as much as we need right now
             reallocate(newBufferSize, newSize);
         }
         else { 
-            // Resize the array only:
-            bytes = new Uint8Array(bytes.buffer, bytes.byteOffset, newSize);
+            // Resize only:
+            end = newSize;
         }
     }
 
@@ -302,9 +307,8 @@ cryptoe.emptyMessage = function () {
     // append some data to it. So we set the initial capacity to
     // some non-zero value
     var initialCapacity = 256;
-    var buf = new ArrayBuffer(256);
-    var bytes = new Uint8Array(buf, 0, 0);
-    return newMessage(bytes, true);
+    var bytes = new Buffer(256);
+    return newMessage(bytes, 0);
 }
 
 /**
@@ -313,11 +317,11 @@ cryptoe.emptyMessage = function () {
  */
 cryptoe.messageFromBytes = function(bytes) {
     var len = bytes.length;
-    var arr = new Uint8Array(len);
+    var buf = new Buffer(len);
     for (var i=0; i<len; ++i) {
-        arr[i] = bytes[i];
+        buf[i] = bytes[i];
     }
-    return newMessage(arr, true);
+    return newMessage(buf, len);
 }
 
 /**
@@ -325,52 +329,23 @@ cryptoe.messageFromBytes = function(bytes) {
  * The returned message is utf-8 encoded.
  */
 cryptoe.messageFromString = function (str) {
-    var binstr = unescape(encodeURIComponent(str)); // each character of utf8str represents one byte
-    return messageFromBinString(binstr);
+    var bytes = new Buffer(str, 'utf8');
+    return newMessage(bytes, bytes.length);
 }
 
 /**
  * Returns a message created from a hex-encoded string.
  */
 cryptoe.messageFromHexString = function(str) {
-    var len = str.length/2;
-    if (Math.floor(len)!==len) throw new Error("Message: wrong length of the input string");
-    var arr = new Uint8Array(len);
-    for (var i=0; i<len; ++i) {
-        arr[i] = parseInt(str[2*i], 16)*16 + parseInt(str[2*i+1], 16);
-    }
-    return newMessage(arr, true);
+    var bytes = new Buffer(str, 'hex');
+    return newMessage(bytes, bytes.length);
 }
 
 /**
  * Creates a message from a base64 representation.
  */
 cryptoe.messageFromBase64 = function(base64str) {
-    var binstr = atob(base64str); // each character of binstr represents one byte
-    return messageFromBinString(binstr);
+    var bytes = new Buffer(base64str, 'base64');
+    return newMessage(bytes, bytes.length);
 }
 
-// PRIVATE FUNCTIONS
-
-function messageFromBinString(binstr) {
-    var len = binstr.length;
-    var arr = new Uint8Array(len);
-    for (var i=0; i<len; ++i) {
-        arr[i] = binstr.charCodeAt(i);
-    }
-    return newMessage(arr, true);
-}
-
-/** 
- * Converts a binary string (one character per byte) to base64.
- */
-function btoa(binstr) {
-    return (new Buffer(binstr, 'binary')).toString('base64');
-}
-
-/** 
- * Converts a base64 string to a binary string (one character per byte)
- */
-function atob(binstr) {
-    return (new Buffer(binstr, 'base64')).toString('binary');
-}
