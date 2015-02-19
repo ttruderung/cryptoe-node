@@ -103,15 +103,15 @@ describe('Message', function(){
 
         m.appendInt16(-1);
         assert.equal( m.takeInt16(), -1);
-        m.appendInt16(0xffff);
-        assert.equal( m.takeInt16(), -1);
+        m.appendInt16(0x7fff);
+        assert.equal( m.takeInt16(), 0x7fff);
         m.appendUint16(0xffff);
         assert.equal( m.takeUint16(), 0xffff);
 
         m.appendInt32(-1);
         assert.equal( m.takeInt32(), -1);
-        m.appendInt32(0xffffffff);
-        assert.equal( m.takeInt32(), -1);
+        m.appendInt32(0x7fffffff);
+        assert.equal( m.takeInt32(), 0x7fffffff);
         m.appendUint32(0xffffffff);
         assert.equal( m.takeUint32(), 0xffffffff);
     });   
@@ -124,13 +124,13 @@ describe('Message', function(){
         for (i=0; i<M; ++i) {
             m.appendInt32(i*71);
             a = m.clone();
-            a.appendInt32(0xffffffff);
+            a.appendInt32(0x7fffffff);
             a.takeUint32();
         }
         assert.equal(m.len(), 4*M);
         for (i=0; i<M; ++i) {
             a = m.clone();
-            a.appendInt32(0xffffffff);
+            a.appendInt32(0x7fffffff);
             a.takeUint32();
             assert.equal( m.takeInt32(), i*71);
         }
