@@ -11,6 +11,7 @@
  */
 
 var assert = require('assert');
+var crypto = require('crypto');
 
 cryptoe = exports;
 
@@ -22,7 +23,7 @@ cryptoe = exports;
  * Private constructor of messages. It creates a messaage  by
  * encapsulating an array of bytes (of type Uint8Array). 
  *
- * @param bytes: (Buffer) array of bytes 
+ * @param bytes: (buffer) array of bytes 
  *
  * @param end:   (int) specifies size of the buffer (the index
  *               where new data can be written to). 
@@ -35,6 +36,7 @@ function newMessage(bytes, end) {
     // Variables bytes (Buffer) and end (int) represent the internal
     // state of the created message. 
 
+    if (end===undefined) end = bytes.length;
 
     // The message object to be returned. All the public methods are
     // added to this object
@@ -208,6 +210,13 @@ function newMessage(bytes, end) {
     }
 
     /**
+     * Appends a (Node) buffer.
+     */
+    message.appendBuffer = function(buf) {
+        message.appendMessage(newMessage(buf, buf.length));
+    }
+
+    /**
      * Appends (an array of) bytes. It accepts anything that
      * has the property bytes.length and can be indexed by bytes[i].
      * Data is copied.
@@ -362,4 +371,91 @@ cryptoe.messageFromBase64 = function(base64str) {
     var bytes = new Buffer(base64str, 'base64');
     return newMessage(bytes, bytes.length);
 }
+
+
+//////////////////////////////////////////////////////////////////////
+// RANDOM
+
+/**
+ * Returns a random message of the given length (in bytes).
+ */
+cryptoe.random = function(length) {
+    if (length===undefined) throw new Error('random: no length given');
+    var bytes = crypto.randomBytes(length);
+    return newMessage(bytes, bytes.length);
+}
+
+
+//////////////////////////////////////////////////////////////////////
+// SYMMETRIC-KEY ENCRYPTION
+
+/**
+ * Private constructor for symmetic keys. It encapsuates a
+ * keyBytes (buffer).
+ */
+function newSymmetricKey(keyBytes) {
+    // the key object to be returned
+    var key = { };
+
+    key.encrypt = function (message) {
+        // Pick a random IV
+        var iv = cryptoe.random(12);
+        // Create a cipher
+        var cipher = crypto.createCipheriv("id-aes256-GCM", keyBytes, iv.toBytes());
+        // Encrypt (iv + raw encrytpion + authentication tag)
+        var encrypted = cryptoe.emptyMessage();
+        encrypted.appendMessage(iv);
+        encrypted.appendBuffer(cipher.update(message.toBytes()));
+        encrypted.appendBuffer(cipher.final());
+        encrypted.appendBuffer(cipher.getAuthTag());
+
+        return encrypted;
+    }
+
+    key.decrypt = function (message) {
+        // Take the iv (first 12 bytes of the message)
+        var iv = message.takeMessage(12);
+        // Take the encrypted message without the authentication tag (16 bytes of the message)
+        var encrypted = message.takeMessage(message.len()-16);
+        // The rest is the authenticatino tag
+        var tag = message;
+        // Create a decipher
+        var decipher = crypto.createDecipheriv("id-aes256-GCM", keyBytes, iv.toBytes());
+        // Set the authentication tag
+        decipher.setAuthTag(tag.toBytes());
+        // Decrypt
+        var dec = cryptoe.emptyMessage();
+        dec.appendBuffer(decipher.update(encrypted.toBytes()));
+        dec.appendBuffer(decipher.final());
+
+        return dec;
+    }
+
+    key.asMessage = function () {
+        return newMessage(keyBytes);
+    }
+
+    // Return the key (this) object
+    return key;
+};
+
+/**
+ * Generate a new symmetic key. 
+ *
+ * A symmetric key has, most importantly, mehtods 
+ * encrypt(m) and decrypt(m).
+ */
+cryptoe.generateSymmetricKey = function () {
+    var key = cryptoe.random(32);
+    return newSymmetricKey(key.toBytes());
+}
+
+/**
+ * Convert a message to a symmetric key.
+ */
+cryptoe.symmetricKeyFromMessage = function (message) {
+    return newSymmetricKey(message.toBytes());
+}
+
+
 
