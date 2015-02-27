@@ -208,6 +208,20 @@ function newMessage(bytes, end) {
     }
 
     /**
+     * Appends (an array of) bytes. It accepts anything that
+     * has the property bytes.length and can be indexed by bytes[i].
+     * Data is copied.
+     */
+    message.appendBytes = function(bytes) {
+        if (bytes.length === undefined) throw new Error('Message.appendBytes: Type error')
+        var len = bytes.length;
+        for (var i=0; i<len; ++i) {
+            message.appendByte(bytes[i]);
+        }
+    }
+
+
+    /**
      * Appends a byte (unsigned 8-bit integer).
      */
     message.appendByte = function(b) {
