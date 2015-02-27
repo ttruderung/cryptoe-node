@@ -1,5 +1,4 @@
 var assert = require('assert');
-var co = require('co');
 
 describe('Crypto', function(){
 

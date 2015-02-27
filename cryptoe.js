@@ -16,6 +16,19 @@ var crypto = require('crypto');
 cryptoe = exports;
 
 //////////////////////////////////////////////////////////////////////
+//
+
+function CryptoeError(message) {
+  this.name = 'CryptoeError';
+  this.message = message || 'Unspecified error';
+}
+CryptoeError.prototype = Object.create(Error.prototype);
+CryptoeError.prototype.constructor = CryptoeError;
+
+cryptoe.Error = CryptoeError;
+
+
+//////////////////////////////////////////////////////////////////////
 // MESSAGE
 
 
@@ -124,7 +137,7 @@ function newMessage(bytes, end) {
      * and moves the beginning of the message 1 byte forward.
      */
     message.takeByte = function() {
-        if (message.len()<1) throw new Error("Message.takeByte: not enought data");
+        if (message.len()<1) throw new CryptoeError("Message.takeByte: not enought data");
         var value = message.byteAt(0);
         message.skip(1);
         return value;
@@ -135,7 +148,7 @@ function newMessage(bytes, end) {
      * and moves the beginning of the message 2 byte forward.
      */
     message.takeInt16 = function() {
-        if (message.len()<2) throw new Error("Message.takeInt16: not enought data");
+        if (message.len()<2) throw new CryptoeError("Message.takeInt16: not enought data");
         var value = bytes.readInt16BE(0);
         message.skip(2)
         return value;
@@ -146,7 +159,7 @@ function newMessage(bytes, end) {
      * and moves the beginning of the message 4 byte forward.
      */
     message.takeInt32 = function() {
-        if (message.len()<4) throw new Error("Message.takeInt32: not enought data");
+        if (message.len()<4) throw new CryptoeError("Message.takeInt32: not enought data");
         var value = bytes.readInt32BE(0);
         message.skip(4);
         return value;
@@ -157,7 +170,7 @@ function newMessage(bytes, end) {
      * and moves the beginning of the message 2 byte forward.
      */
     message.takeUint16 = function() {
-        if (message.len()<2) throw new Error("Message.takeUInt16: not enought data");
+        if (message.len()<2) throw new CryptoeError("Message.takeUInt16: not enought data");
         var value = bytes.readUInt16BE(0); 
         message.skip(2);
         return value;
@@ -168,7 +181,7 @@ function newMessage(bytes, end) {
      * and moves the beginning of the message 4 byte forward.
      */
     message.takeUint32 = function() {
-        if (message.len()<4) throw new Error("Message.takeUint32: not enought data");
+        if (message.len()<4) throw new CryptoeError("Message.takeUint32: not enought data");
         var value = bytes.readUInt32BE(0); 
         message.skip(4);
         return value;
@@ -179,7 +192,7 @@ function newMessage(bytes, end) {
      * as a new message.
      */
     message.takeMessage = function(len) {
-        if (message.len()<len) throw new Error("Message.takeMessage: not enought data");
+        if (message.len()<len) throw new CryptoeError("Message.takeMessage: not enought data");
         var value = message.slice(0,len);
         message.skip(len);
         return value;
@@ -222,7 +235,7 @@ function newMessage(bytes, end) {
      * Data is copied.
      */
     message.appendBytes = function(bytes) {
-        if (bytes.length === undefined) throw new Error('Message.appendBytes: Type error')
+        if (bytes.length === undefined) throw new CryptoeError('Message.appendBytes: Type error')
         var len = bytes.length;
         for (var i=0; i<len; ++i) {
             message.appendByte(bytes[i]);
@@ -283,7 +296,7 @@ function newMessage(bytes, end) {
     //
     function reallocate(newBufferSize, newArraySize) {
         if (newArraySize < message.len() || newBufferSize < newArraySize ) {
-            throw new Error('Message.realocate: wrong size');
+            throw new CryptoeError('Message.realocate: wrong size');
         }
 
         // Allocate a new buffer of size newBufferSize: 
@@ -360,8 +373,12 @@ cryptoe.messageFromString = function (str) {
  * Returns a message created from a hex-encoded string.
  */
 cryptoe.messageFromHexString = function(str) {
-    var bytes = new Buffer(str, 'hex');
-    return newMessage(bytes, bytes.length);
+    try {
+        var bytes = new Buffer(str, 'hex');
+        return newMessage(bytes, bytes.length);
+    } catch (err) {
+        throw new CryptoeError('Not a valid hex-string');
+    }
 }
 
 /**
@@ -380,7 +397,7 @@ cryptoe.messageFromBase64 = function(base64str) {
  * Returns a random message of the given length (in bytes).
  */
 cryptoe.random = function(length) {
-    if (length===undefined) throw new Error('random: no length given');
+    if (length===undefined) throw new CryptoeError('random: no length given');
     var bytes = crypto.randomBytes(length);
     return newMessage(bytes, bytes.length);
 }
