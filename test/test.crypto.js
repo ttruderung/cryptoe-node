@@ -58,6 +58,13 @@ describe('Crypto', function(){
             assert.equal(d.toString(), 'łąka!');
         });
 
+        it('rejects invalid ciphertexts', function() {
+            var key = cryptoe.symmetricKeyFromMessage(cryptoe.messageFromHexString('68bbb32ae81b85752be3bc632293a31353f9df0a96976193474782cc13a5cdda'));
+            var c   = cryptoe.messageFromHexString('3d66b89160a0ad129bbab5115f416b56ada6a0b136bc44982ec003a86802e99e008801');
+            assert.throws(function(){
+                key.decrypt(c);
+            }, cryptoe.Error);
+        });
     });  
 
 });  

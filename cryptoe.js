@@ -439,12 +439,15 @@ function newSymmetricKey(keyBytes) {
         // Create a decipher
         var decipher = crypto.createDecipheriv("id-aes256-GCM", keyBytes, iv.toBytes());
         // Set the authentication tag
-        decipher.setAuthTag(tag.toBytes());
         // Decrypt
-        var dec = cryptoe.emptyMessage();
-        dec.appendBuffer(decipher.update(encrypted.toBytes()));
-        dec.appendBuffer(decipher.final());
-
+        try {
+            decipher.setAuthTag(tag.toBytes());
+            var dec = cryptoe.emptyMessage();
+            dec.appendBuffer(decipher.update(encrypted.toBytes()));
+            dec.appendBuffer(decipher.final());
+        } catch(err) {
+            throw new CryptoeError('Invalid Ciphertext');
+        }
         return dec;
     }
 
