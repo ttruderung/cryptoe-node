@@ -18,9 +18,9 @@ cryptoe = exports;
 //////////////////////////////////////////////////////////////////////
 //
 
-function CryptoeError(message) {
+function CryptoeError(description) {
   this.name = 'CryptoeError';
-  this.message = message || 'Unspecified error';
+  this.message = description || 'Unspecified error';
 }
 CryptoeError.prototype = Object.create(Error.prototype);
 CryptoeError.prototype.constructor = CryptoeError;
