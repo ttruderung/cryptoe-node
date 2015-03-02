@@ -12,7 +12,7 @@ describe('Crypto', function(){
         it('requires parameter (length)', function() {
             assert.throws(function() {
                 cryptoe.random();
-            });
+            }, cryptoe.Error);
         });
 
     });  
