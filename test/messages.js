@@ -9,6 +9,20 @@ describe('Message', function(){
     })
   });
 
+  describe('slice', function(){
+    it('works as expected', function(){
+       var m = cryptoe.messageFromHexString('00112233445566778899aabb'); 
+       var a = m.slice(0,5);
+       var b = m.slice(5);
+       var c = m.slice(2,7);
+       var d = m.slice(2,-3);
+       assert.equal(a.toHexString(), '0011223344');
+       assert.equal(b.toHexString(), '5566778899aabb');
+       assert.equal(c.toHexString(), '2233445566');
+       assert.equal(d.toHexString(), '22334455667788');
+    });
+
+  });
 
   describe('messageFromBytes', function(){
     it('works as expected', function(){
@@ -77,6 +91,73 @@ describe('Message', function(){
         assert.throws(function(err){
                 cryptoe.messageFromHexString("12345"); // wrong length
             }, cryptoe.Error);
+    });
+  });
+
+  describe('methods of message', function(){
+    it('check types of their parameters', function(){
+        var m = cryptoe.messageFromHexString('00112233445566778899aabb'); 
+
+        assert.throws(function(){
+           m.slice(2,"lkj");
+        }, cryptoe.Error);
+        assert.throws(function(){
+           m.slice(2,"lkj");
+        }, cryptoe.Error);
+        assert.throws(function(){
+           m.slice(2,{});
+        }, cryptoe.Error);
+        assert.throws(function(){
+           m.slice({},3);
+        }, cryptoe.Error);
+  
+        assert.throws(function(){
+           m.takeMessage("kj");
+        }, cryptoe.Error);
+        assert.throws(function(){
+           m.skip("kj");
+        }, cryptoe.Error);
+
+        assert.throws(function(){
+           m.appendMessage({});
+        }, cryptoe.Error);
+        assert.throws(function(){
+           m.appendBytes({});
+        }, cryptoe.Error);
+
+        assert.throws(function(){
+           m.appendByte({});
+        }, cryptoe.Error);
+        assert.throws(function(){
+           m.appendInt16("abc");
+        }, cryptoe.Error);
+        assert.throws(function(){
+           m.appendInt32("abc");
+        }, cryptoe.Error);
+
+    })
+  });
+
+  describe('constructors of message', function(){
+    it('check types of their parameters', function(){
+        assert.throws(function(){
+           cryptoe.messageFromBytes("abc");
+        }, cryptoe.Error);
+        assert.throws(function(){
+           cryptoe.messageFromString(2);
+        }, cryptoe.Error);
+        assert.throws(function(){
+           cryptoe.messageFromHexString(2);
+        }, cryptoe.Error);
+        assert.throws(function(){
+           cryptoe.messageFromHexString("abc");
+        }, cryptoe.Error);
+        assert.throws(function(){
+           cryptoe.messageFromHexString("am");
+        }, cryptoe.Error);
+        assert.throws(function(){
+           cryptoe.messageFromBase64(5);
+        }, cryptoe.Error);
     });
   });
 

@@ -27,6 +27,35 @@ CryptoeError.prototype.constructor = CryptoeError;
 
 cryptoe.Error = CryptoeError;
 
+function assertNumber(x) {
+    if (typeof x !== 'number')
+        throw new CryptoeError('Type Error: expected number');
+}
+
+function assertByte(x) {
+    if (typeof x !== 'number' || x<0 || x>255)
+        throw new CryptoeError('Type Error: expected byte');
+}
+
+function assertMessage(x) {
+    if (x.constructor !== newMessage)
+        throw new CryptoeError('Type Error: expected message');
+}
+
+function assertBytes(x) {
+    if (x.length === undefined || typeof x[0] !== 'number')
+        throw new CryptoeError('Type Error: expected array of bytes');
+}
+
+function assertString(x) {
+    if (typeof x !== 'string')
+        throw new CryptoeError('Type Error: expected string');
+}
+
+function assertHexString(x) {
+    if (typeof x !== 'string' || ! /^(([0-9,a-f][0-9,a-f])+$)/.test(x) )
+        throw new CryptoeError('Type Error: expected hex sting');
+}
 
 //////////////////////////////////////////////////////////////////////
 // MESSAGE
@@ -53,7 +82,7 @@ function newMessage(bytes, end) {
 
     // The message object to be returned. All the public methods are
     // added to this object
-    var message = {};
+    var message = Object.create(messageProto);
 
     message.reallocationCounter = 0; // for testing 
     
@@ -68,6 +97,7 @@ function newMessage(bytes, end) {
      * Returns the i-th byte of the message
      */
     message.byteAt = function(n) {
+        assertNumber(n);
         assert(n>=0 && n<end);
         return bytes[n];
     }
@@ -85,6 +115,7 @@ function newMessage(bytes, end) {
     message.slice = function(a, b) {
         if (b===undefined) { b = message.len(); }
         if (b<0) { b = message.len() + b; }
+        assertNumber(a); assertNumber(b);
         return newMessage(bytes.slice(a, b), b);
     }
 
@@ -192,6 +223,7 @@ function newMessage(bytes, end) {
      * as a new message.
      */
     message.takeMessage = function(len) {
+        assertNumber(len);
         if (message.len()<len) throw new CryptoeError("Message.takeMessage: not enought data");
         var value = message.slice(0,len);
         message.skip(len);
@@ -202,6 +234,7 @@ function newMessage(bytes, end) {
      * Skips n bytes (moves the beginning of the messages n bytes forward).
      */
     message.skip = function(n) {
+        assertNumber(n);
         if (end < n) n = end;
 
         bytes = bytes.slice(n); 
@@ -214,6 +247,7 @@ function newMessage(bytes, end) {
      * necessary).
      */
     message.appendMessage = function(msg) {
+        assertMessage(msg);
         var oldend = message.len(); // keep the end, the next line will change it
         var l = msg.len();
         enlargeBy(l); 
@@ -235,6 +269,7 @@ function newMessage(bytes, end) {
      * Data is copied.
      */
     message.appendBytes = function(bytes) {
+        assertBytes(bytes);
         if (bytes.length === undefined) throw new CryptoeError('Message.appendBytes: Type error')
         var len = bytes.length;
         for (var i=0; i<len; ++i) {
@@ -247,6 +282,7 @@ function newMessage(bytes, end) {
      * Appends a byte (unsigned 8-bit integer).
      */
     message.appendByte = function(b) {
+        assertByte(b);
         var oldend = message.len();
         enlargeBy(1); 
         bytes[oldend] = b;
@@ -256,6 +292,7 @@ function newMessage(bytes, end) {
      * Appends a signed 16-bit integer.
      */
     message.appendInt16 = function(value) {
+        assertNumber(value);
         var oldend = message.len();
         enlargeBy(2); 
         bytes.writeInt16BE(value, oldend);
@@ -265,6 +302,7 @@ function newMessage(bytes, end) {
      * Appends an unsigned 16-bit integer.
      */
     message.appendUint16 = function(value) {
+        assertNumber(value);
         var oldend = message.len();
         enlargeBy(2); 
         bytes.writeUInt16BE(value, oldend);
@@ -274,6 +312,7 @@ function newMessage(bytes, end) {
      * Appends a signed 32-bit integer.
      */
     message.appendInt32 = function(value) {
+        assertNumber(value);
         var oldend = message.len();
         enlargeBy(4); 
         bytes.writeInt32BE(value, oldend)
@@ -283,6 +322,7 @@ function newMessage(bytes, end) {
      * Appends a signed 32-bit integer.
      */
     message.appendUint32 = function(value) {
+        assertNumber(value);
         var oldend = message.len();
         enlargeBy(4); 
         bytes.writeUInt32BE(value, oldend)
@@ -332,6 +372,7 @@ function newMessage(bytes, end) {
     // Return the message object
     return message;
 }
+var messageProto = { constructor: newMessage };
 // END OF MESSAGE
 
 
@@ -352,6 +393,7 @@ cryptoe.emptyMessage = function () {
  * has the property bytes.length and can be indexed by bytes[i].
  */
 cryptoe.messageFromBytes = function(bytes) {
+    assertBytes(bytes);
     var len = bytes.length;
     var buf = new Buffer(len);
     for (var i=0; i<len; ++i) {
@@ -365,6 +407,7 @@ cryptoe.messageFromBytes = function(bytes) {
  * The returned message is utf-8 encoded.
  */
 cryptoe.messageFromString = function (str) {
+    assertString(str);
     var bytes = new Buffer(str, 'utf8');
     return newMessage(bytes, bytes.length);
 }
@@ -373,20 +416,22 @@ cryptoe.messageFromString = function (str) {
  * Returns a message created from a hex-encoded string.
  */
 cryptoe.messageFromHexString = function(str) {
-    try {
-        var bytes = new Buffer(str, 'hex');
-        return newMessage(bytes, bytes.length);
-    } catch (err) {
-        throw new CryptoeError('Not a valid hex-string');
-    }
+    assertHexString(str);
+    var bytes = new Buffer(str, 'hex');
+    return newMessage(bytes, bytes.length);
 }
 
 /**
  * Creates a message from a base64 representation.
  */
 cryptoe.messageFromBase64 = function(base64str) {
-    var bytes = new Buffer(base64str, 'base64');
-    return newMessage(bytes, bytes.length);
+    assertString(base64str);
+    try {
+        var bytes = new Buffer(base64str, 'base64');
+        return newMessage(bytes, bytes.length);
+    } catch (err) {
+        throw new CryptoeError("Incorrecty encoded base64 string");
+    }
 }
 
 
